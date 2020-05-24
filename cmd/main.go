@@ -1,7 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"goping/internal"
+)
 
 func main() {
-	fmt.Println("hello")
+	internal.Test()
 }
