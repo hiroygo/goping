@@ -10,7 +10,7 @@ const (
 	icmpHeaderBytes = 8
 )
 
-// ICMPEchoHeader Echo と Echo Reply のICMPヘッダ
+// ICMPEchoHeader EchoRequest と EchoReply の ICMP ヘッダ
 type ICMPEchoHeader struct {
 	Type           byte
 	Code           byte
@@ -19,7 +19,7 @@ type ICMPEchoHeader struct {
 	SequenceNumber uint16
 }
 
-// ICMPEchoMessage Echo/Echo Reply 構造体
+// ICMPEchoMessage EchoRequest と EchoReply を表す構造体
 type ICMPEchoMessage struct {
 	ICMPEchoHeader
 	Data []byte
@@ -31,7 +31,7 @@ func marshal(echo *ICMPEchoMessage) []byte {
 	bytes[0] = echo.Type
 	bytes[1] = echo.Code
 	// bytes[2], bytes[3] はチェックサムなのであとで設定する
-	// uint16 をビッグエンディアンで byte に変換する
+	// uint16 をビッグエンディアンで 2byte に変換する
 	binary.BigEndian.PutUint16(bytes[4:6], echo.Identifier)
 	binary.BigEndian.PutUint16(bytes[6:8], echo.SequenceNumber)
 
@@ -40,16 +40,22 @@ func marshal(echo *ICMPEchoMessage) []byte {
 		bytes[i+icmpHeaderBytes] = echo.Data[i]
 	}
 
-	// チェックサムを定する
+	// チェックサムを設定する
 	binary.BigEndian.PutUint16(bytes[2:4], GetChecksum(bytes))
 
 	return bytes
 }
 
-// Unmarshal Echo または Echo Reply のバイトスライスから構造体を作成する
-func Unmarshal(bytes []byte, echo *ICMPEchoMessage) error {
+// MarshalEchoRequest ICMP EchoRequest のバイトスライスを作成する
+func MarshalEchoRequest(identifier uint16, sequenceNumber uint16, data []byte) []byte {
+	echo := ICMPEchoMessage{ICMPEchoHeader: ICMPEchoHeader{Type: 8, Code: 0, Checksum: 0, Identifier: identifier, SequenceNumber: sequenceNumber}, Data: data}
+	return marshal(&echo)
+}
+
+// UnmarshalEcho ICMP EchoRequest または EchoReply のバイトスライスから構造体を作成する
+func UnmarshalEcho(bytes []byte, echo *ICMPEchoMessage) error {
 	if len(bytes) < icmpHeaderBytes {
-		msg := fmt.Sprintf("Unmarshal error:バイト列の長さ %d が不正です。", len(bytes))
+		msg := fmt.Sprintf("UnmarshalEcho error:バイト列の長さ %d は不正です。", len(bytes))
 		return errors.New(msg)
 	}
 
@@ -67,30 +73,24 @@ func Unmarshal(bytes []byte, echo *ICMPEchoMessage) error {
 	return nil
 }
 
-// MarshalEcho ICMP Echo メッセージのバイトスライスを作成する
-func MarshalEcho(identifier uint16, sequenceNumber uint16, data []byte) []byte {
-	echo := ICMPEchoMessage{ICMPEchoHeader: ICMPEchoHeader{Type: 8, Code: 0, Checksum: 0, Identifier: identifier, SequenceNumber: sequenceNumber}, Data: data}
-	return marshal(&echo)
-}
-
-// GetChecksum ICMPチェックサムを返す
+// GetChecksum bytes はビッグエンディアンで並んでいること
 func GetChecksum(bytes []byte) uint16 {
 	var ret uint32
 
-	// 16ビットずつ走査していく
+	// 16 ビットずつ走査していく
 	for i := 0; i+1 < len(bytes); i += 2 {
-		// 初めのバイトを16ビット用に変換
+		// 初めの 8 ビット分を足す
 		ret += uint32(bytes[i]) << 8
-		// 後のバイトを16ビット用に変換
+		// 後の 8 ビット分を足す
 		ret += uint32(bytes[i+1])
 	}
 
-	// ICMPの全体長が奇数の時は0埋めして末尾16ビットとする
+	// ICMP の全体長が奇数の時は 0 埋めして末尾を 16 ビットとする
 	if len(bytes)%2 != 0 {
 		ret += uint32(bytes[len(bytes)-1]) << 8
 	}
 
-	// チェックサムは16ビットなのであふれた桁を計算する
+	// チェックサムは 16 ビットなのであふれた桁を取り出す
 	overflowDigit := ret >> 16
 
 	// あふれた分を消して、足す
