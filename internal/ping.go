@@ -25,7 +25,14 @@ type ICMPEchoMessage struct {
 	Data []byte
 }
 
-func marshal(echo *ICMPEchoMessage) []byte {
+// NewEchoRequest EchoRequest 構造体のポインタを返す
+func NewEchoRequest(identifier uint16, sequenceNumber uint16, data []byte) *ICMPEchoMessage {
+	echo := ICMPEchoMessage{ICMPEchoHeader: ICMPEchoHeader{Type: 8, Code: 0, Checksum: 0, Identifier: identifier, SequenceNumber: sequenceNumber}, Data: data}
+	return &echo
+}
+
+// MarshalEcho EchoRequest または EchoReply のバイトスライスを作成する
+func MarshalEcho(echo *ICMPEchoMessage) []byte {
 	bytes := make([]byte, icmpHeaderBytes+len(echo.Data))
 
 	bytes[0] = echo.Type
@@ -44,12 +51,6 @@ func marshal(echo *ICMPEchoMessage) []byte {
 	binary.BigEndian.PutUint16(bytes[2:4], GetChecksum(bytes))
 
 	return bytes
-}
-
-// MarshalEchoRequest ICMP EchoRequest のバイトスライスを作成する
-func MarshalEchoRequest(identifier uint16, sequenceNumber uint16, data []byte) []byte {
-	echo := ICMPEchoMessage{ICMPEchoHeader: ICMPEchoHeader{Type: 8, Code: 0, Checksum: 0, Identifier: identifier, SequenceNumber: sequenceNumber}, Data: data}
-	return marshal(&echo)
 }
 
 // UnmarshalEcho ICMP EchoRequest または EchoReply のバイトスライスから構造体を作成する
@@ -71,6 +72,11 @@ func UnmarshalEcho(bytes []byte, echo *ICMPEchoMessage) error {
 	}
 
 	return nil
+}
+
+// IsEchoPair echoRequest と echoReply が対になっているか確認する
+func IsEchoPair(echoRequest *ICMPEchoMessage, echoReply *ICMPEchoMessage) bool {
+	return false
 }
 
 // GetChecksum bytes はビッグエンディアンで並んでいること
