@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"reflect"
 )
 
 const (
@@ -60,6 +61,11 @@ func UnmarshalEcho(bytes []byte, echo *ICMPEchoMessage) error {
 		return errors.New(msg)
 	}
 
+	if checksum := GetChecksum(bytes); checksum != 0x0000 {
+		msg := fmt.Sprintf("UnmarshalEcho error:チェックサム %d は再計算で 0x0000 になりません。", checksum)
+		return errors.New(msg)
+	}
+
 	echo.Type = bytes[0]
 	echo.Code = bytes[1]
 	echo.Checksum = binary.BigEndian.Uint16(bytes[2:4])
@@ -74,8 +80,24 @@ func UnmarshalEcho(bytes []byte, echo *ICMPEchoMessage) error {
 	return nil
 }
 
-// IsEchoPair echoRequest と echoReply が対になっているか確認する
-func IsEchoPair(echoRequest *ICMPEchoMessage, echoReply *ICMPEchoMessage) bool {
+// IsSameFieldEcho ICMPEchoMessage のフィールドが一致しているか確認する。Type と Checksum は確認しない
+func IsSameFieldEcho(echoRequest *ICMPEchoMessage, echoReply *ICMPEchoMessage) bool {
+	if echoRequest.Code != echoReply.Code {
+		return false
+	}
+
+	if echoRequest.Identifier != echoReply.Identifier {
+		return false
+	}
+
+	if echoRequest.SequenceNumber != echoReply.SequenceNumber {
+		return false
+	}
+
+	if !reflect.DeepEqual(echoRequest.Data, echoReply.Data) {
+		return false
+	}
+
 	return false
 }
 
