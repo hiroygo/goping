@@ -8,7 +8,11 @@ import (
 )
 
 const (
-	icmpHeaderBytes = 8
+	ipv4HeaderMinBytes = 20
+	ipv4TotalLengthMax = 65535
+	icmpHeaderBytes    = 8
+	// ICMPEchoDataMaxBytes ICMP ペイロードの最大バイト数
+	ICMPEchoDataMaxBytes = ipv4TotalLengthMax - ipv4HeaderMinBytes - icmpHeaderBytes
 )
 
 // ICMPEchoHeader EchoRequest と EchoReply の ICMP ヘッダ
@@ -33,7 +37,12 @@ func NewEchoRequest(identifier uint16, sequenceNumber uint16, data []byte) *ICMP
 }
 
 // MarshalEcho EchoRequest または EchoReply のバイトスライスを作成する
-func MarshalEcho(echo *ICMPEchoMessage) []byte {
+func MarshalEcho(echo *ICMPEchoMessage) ([]byte, error) {
+	if len(echo.Data) > ICMPEchoDataMaxBytes {
+		msg := fmt.Sprintf("MarshalEcho error:ペイロードのサイズは %d までです。", ICMPEchoDataMaxBytes)
+		return nil, errors.New(msg)
+	}
+
 	bytes := make([]byte, icmpHeaderBytes+len(echo.Data))
 
 	bytes[0] = echo.Type
@@ -51,7 +60,7 @@ func MarshalEcho(echo *ICMPEchoMessage) []byte {
 	// チェックサムを設定する
 	binary.BigEndian.PutUint16(bytes[2:4], GetChecksum(bytes))
 
-	return bytes
+	return bytes, nil
 }
 
 // UnmarshalEcho ICMP EchoRequest または EchoReply のバイトスライスから構造体を作成する
@@ -80,8 +89,8 @@ func UnmarshalEcho(bytes []byte, echo *ICMPEchoMessage) error {
 	return nil
 }
 
-// IsSameFieldEcho ICMPEchoMessage のフィールドが一致しているか確認する。Type と Checksum は確認しない
-func IsSameFieldEcho(echoRequest *ICMPEchoMessage, echoReply *ICMPEchoMessage) bool {
+// IsSameEchoField ICMPEchoMessage のフィールドが一致しているか確認する。Type と Checksum は確認しない
+func IsSameEchoField(echoRequest *ICMPEchoMessage, echoReply *ICMPEchoMessage) bool {
 	if echoRequest.Code != echoReply.Code {
 		return false
 	}

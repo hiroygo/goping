@@ -59,7 +59,10 @@ func TestMarshalEcho(t *testing.T) {
 			0x75, 0x76, 0x77, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67,
 			0x68, 0x69},
 	}
-	bytes := internal.MarshalEcho(&echoRequest)
+	bytes, ok := internal.MarshalEcho(&echoRequest)
+	if ok != nil {
+		t.Error(ok)
+	}
 
 	if !reflect.DeepEqual(expect, bytes) {
 		t.Error()
