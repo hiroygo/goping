@@ -38,6 +38,10 @@ func NewEchoRequest(identifier uint16, sequenceNumber uint16, data []byte) *ICMP
 
 // MarshalEcho EchoRequest または EchoReply のバイトスライスを作成する
 func MarshalEcho(echo *ICMPEchoMessage) ([]byte, error) {
+	if echo == nil {
+		return nil, errors.New("MarshalEcho error:パラメータが nil です。")
+	}
+
 	if len(echo.Data) > ICMPEchoDataMaxBytes {
 		msg := fmt.Sprintf("MarshalEcho error:ペイロードのサイズは %d までです。", ICMPEchoDataMaxBytes)
 		return nil, errors.New(msg)
@@ -65,6 +69,10 @@ func MarshalEcho(echo *ICMPEchoMessage) ([]byte, error) {
 
 // UnmarshalEcho ICMP EchoRequest または EchoReply のバイトスライスから構造体を作成する
 func UnmarshalEcho(bytes []byte, echo *ICMPEchoMessage) error {
+	if echo == nil {
+		return errors.New("UnmarshalEcho error:パラメータが nil です。")
+	}
+
 	if len(bytes) < icmpHeaderBytes {
 		msg := fmt.Sprintf("UnmarshalEcho error:バイト列の長さ %d は不正です。", len(bytes))
 		return errors.New(msg)
@@ -91,6 +99,10 @@ func UnmarshalEcho(bytes []byte, echo *ICMPEchoMessage) error {
 
 // IsSameEchoField ICMPEchoMessage のフィールドが一致しているか確認する。Type と Checksum は確認しない
 func IsSameEchoField(echoRequest *ICMPEchoMessage, echoReply *ICMPEchoMessage) bool {
+	if echoRequest == nil || echoReply == nil {
+		return false
+	}
+
 	if echoRequest.Code != echoReply.Code {
 		return false
 	}
