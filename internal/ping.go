@@ -119,7 +119,7 @@ func IsSameEchoField(echoRequest *ICMPEchoMessage, echoReply *ICMPEchoMessage) b
 		return false
 	}
 
-	return false
+	return true
 }
 
 // GetChecksum bytes はビッグエンディアンで並んでいること
