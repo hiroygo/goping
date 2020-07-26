@@ -83,8 +83,9 @@ func do(remoteIP string, timeout time.Duration, identifier uint16, sequenceNumbe
 	readBytes = readBytes[:readSize]
 
 	// 受信データを構造体にする
-	echoReply := &ping.ICMPEchoMessage{}
-	if err = ping.UnmarshalEcho(readBytes, echoReply); err != nil {
+	var echoReply *ping.ICMPEchoMessage
+	echoReply, err = ping.UnmarshalEcho(readBytes)
+	if err != nil {
 		msg := fmt.Sprintf("ping error:%v", err)
 		return time.Duration(0), errors.New(msg)
 	}

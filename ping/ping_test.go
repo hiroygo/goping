@@ -85,12 +85,13 @@ func TestUnmarshalEcho(t *testing.T) {
 		0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x61,
 		0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69,
 	}
-	var unmarshaled ping.ICMPEchoMessage
-	if ok := ping.UnmarshalEcho(marshaled, &unmarshaled); ok != nil {
+	var e *ping.ICMPEchoMessage
+	var ok error
+	if e, ok = ping.UnmarshalEcho(marshaled); ok != nil {
 		t.Error(ok)
 	}
 
-	if !reflect.DeepEqual(expect, unmarshaled) {
+	if !reflect.DeepEqual(expect, *e) {
 		t.Error("期待された値と一致しません。")
 	}
 }
