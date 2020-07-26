@@ -1,15 +1,16 @@
-package internal
+package ping_test
 
 import (
-	"goping/internal"
 	"reflect"
 	"testing"
+
+	"github.com/hiroygo/goping/ping"
 )
 
 func TestGetChecksum(t *testing.T) {
 	// バイトスライス中のチェックサムが 0x00 0x00 に設定されているとき = ICMP を送信するとき
 	{
-		checksum := internal.GetChecksum(
+		checksum := ping.GetChecksum(
 			[]byte{
 				0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x0b, 0x61, 0x62, 0x63,
 				0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e,
@@ -23,7 +24,7 @@ func TestGetChecksum(t *testing.T) {
 
 	// バイトスライス中のチェックサムがすでに設定されているとき = 受信したチェックサムは計算すると 0x00 0x00 になる
 	{
-		checksum := internal.GetChecksum(
+		checksum := ping.GetChecksum(
 			[]byte{
 				0x08, 0x00, 0x4d, 0x50, 0x00, 0x01, 0x00, 0x0b, 0x61, 0x62, 0x63,
 				0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e,
@@ -37,7 +38,7 @@ func TestGetChecksum(t *testing.T) {
 
 	// 1 バイトのとき
 	{
-		checksum := internal.GetChecksum([]byte{0x00})
+		checksum := ping.GetChecksum([]byte{0x00})
 		if checksum != 0xFFFF {
 			t.Error("1 バイトのとき")
 		}
@@ -51,15 +52,15 @@ func TestMarshalEcho(t *testing.T) {
 		0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69,
 	}
 
-	echoRequest := internal.ICMPEchoMessage{
-		ICMPEchoHeader: internal.ICMPEchoHeader{Type: 8, Code: 0, Checksum: 0, Identifier: 1, SequenceNumber: 11},
+	echoRequest := ping.ICMPEchoMessage{
+		ICMPEchoHeader: ping.ICMPEchoHeader{Type: 8, Code: 0, Checksum: 0, Identifier: 1, SequenceNumber: 11},
 		Data: []byte{
 			0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a,
 			0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x73, 0x74,
 			0x75, 0x76, 0x77, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67,
 			0x68, 0x69},
 	}
-	bytes, ok := internal.MarshalEcho(&echoRequest)
+	bytes, ok := ping.MarshalEcho(&echoRequest)
 	if ok != nil {
 		t.Error(ok)
 	}
@@ -70,8 +71,8 @@ func TestMarshalEcho(t *testing.T) {
 }
 
 func TestUnmarshalEcho(t *testing.T) {
-	expect := internal.ICMPEchoMessage{
-		ICMPEchoHeader: internal.ICMPEchoHeader{Type: 8, Code: 0, Checksum: 0x4ffe, Identifier: 0xff1e, SequenceNumber: 0xfe3e},
+	expect := ping.ICMPEchoMessage{
+		ICMPEchoHeader: ping.ICMPEchoHeader{Type: 8, Code: 0, Checksum: 0x4ffe, Identifier: 0xff1e, SequenceNumber: 0xfe3e},
 		Data: []byte{
 			0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a,
 			0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x73, 0x74,
@@ -84,8 +85,8 @@ func TestUnmarshalEcho(t *testing.T) {
 		0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x61,
 		0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69,
 	}
-	var unmarshaled internal.ICMPEchoMessage
-	if ok := internal.UnmarshalEcho(marshaled, &unmarshaled); ok != nil {
+	var unmarshaled ping.ICMPEchoMessage
+	if ok := ping.UnmarshalEcho(marshaled, &unmarshaled); ok != nil {
 		t.Error(ok)
 	}
 

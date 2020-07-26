@@ -1,4 +1,4 @@
-package internal
+package ping
 
 import (
 	"encoding/binary"
