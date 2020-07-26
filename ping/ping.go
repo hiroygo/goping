@@ -92,7 +92,7 @@ func UnmarshalEcho(bytes []byte) (*ICMPEchoMessage, error) {
 
 // IsSameEchoField ICMPEchoMessage のフィールドが一致しているか確認する
 // Type と Checksum は確認しない
-func IsSameEchoField(echoRequest *ICMPEchoMessage, echoReply *ICMPEchoMessage) bool {
+func IsSameEchoField(echoRequest, echoReply *ICMPEchoMessage) bool {
 	if echoRequest == nil || echoReply == nil {
 		return false
 	}
