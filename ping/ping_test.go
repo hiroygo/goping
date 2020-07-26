@@ -3,6 +3,7 @@ package ping_test
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/hiroygo/goping/ping"
 )
@@ -213,6 +214,39 @@ func TestGetChecksum(t *testing.T) {
 			t.Parallel()
 			if actual := ping.GetChecksum(c.input); actual != c.expected {
 				t.Errorf("want GetChecksum(%v) = %v, got %v", c.input, c.expected, actual)
+			}
+		})
+	}
+}
+
+// TODO: テストでも sudo する必要あり
+func TestDo(t *testing.T) {
+	cases := []struct {
+		name           string
+		remoteIP       string
+		timeout        time.Duration
+		identifier     uint16
+		sequenceNumber uint16
+		dataBytes      uint16
+		wantErr        bool
+	}{
+		{
+			name:           "ローカルループバックアドレス",
+			remoteIP:       "127.0.0.1",
+			timeout:        time.Second,
+			identifier:     1,
+			sequenceNumber: 1,
+			dataBytes:      1,
+			wantErr:        false,
+		},
+	}
+
+	// TODO: 戻り値の rtt もテストする
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := ping.Do(c.remoteIP, c.timeout, c.identifier, c.sequenceNumber, c.dataBytes)
+			if !c.wantErr && err != nil {
+				t.Errorf("Do(%v, %v, %v, %v, %v) error %v", c.remoteIP, c.timeout, c.identifier, c.sequenceNumber, c.dataBytes, err)
 			}
 		})
 	}

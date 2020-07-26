@@ -158,7 +158,7 @@ func parseIPv4Addr(ipv4 string) (*net.IPAddr, error) {
 }
 
 // Do ping を行い、RTT を返す
-func Do(remoteIP string, timeout time.Duration, identifier uint16, sequenceNumber uint16, dataBytes uint16) (t time.Duration, rerr error) {
+func Do(remoteIP string, timeout time.Duration, identifier, sequenceNumber, dataBytes uint16) (t time.Duration, rerr error) {
 	// ペイロードはすべて 0 で作成する
 	echoRequest := NewEchoRequest(identifier, sequenceNumber, make([]byte, dataBytes))
 	writeBytes, err := MarshalEcho(echoRequest)
