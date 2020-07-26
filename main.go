@@ -4,9 +4,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"goping/internal"
 	"net"
 	"time"
+
+	"github.com/hiroygo/goping/ping"
 )
 
 func getIPv4Addr(ipv4 string) (*net.IPAddr, error) {
@@ -19,10 +20,10 @@ func getIPv4Addr(ipv4 string) (*net.IPAddr, error) {
 	return &net.IPAddr{IP: ip}, nil
 }
 
-func ping(remoteIP string, timeout time.Duration, identifier uint16, sequenceNumber uint16, dataBytes uint16) (time.Duration, error) {
+func do(remoteIP string, timeout time.Duration, identifier uint16, sequenceNumber uint16, dataBytes uint16) (time.Duration, error) {
 	// ペイロードはすべて 0 で作成する
-	echoRequest := internal.NewEchoRequest(identifier, sequenceNumber, make([]byte, dataBytes))
-	writeBytes, err := internal.MarshalEcho(echoRequest)
+	echoRequest := ping.NewEchoRequest(identifier, sequenceNumber, make([]byte, dataBytes))
+	writeBytes, err := ping.MarshalEcho(echoRequest)
 	if err != nil {
 		msg := fmt.Sprintf("ping error:%v", err)
 		return time.Duration(0), errors.New(msg)
@@ -82,13 +83,13 @@ func ping(remoteIP string, timeout time.Duration, identifier uint16, sequenceNum
 	readBytes = readBytes[:readSize]
 
 	// 受信データを構造体にする
-	echoReply := &internal.ICMPEchoMessage{}
-	if err = internal.UnmarshalEcho(readBytes, echoReply); err != nil {
+	echoReply := &ping.ICMPEchoMessage{}
+	if err = ping.UnmarshalEcho(readBytes, echoReply); err != nil {
 		msg := fmt.Sprintf("ping error:%v", err)
 		return time.Duration(0), errors.New(msg)
 	}
 
-	if !internal.IsSameEchoField(echoRequest, echoReply) {
+	if !ping.IsSameEchoField(echoRequest, echoReply) {
 		return time.Duration(0), errors.New("ping error:EchoReply のフィールドが一致しません。")
 	}
 
@@ -107,7 +108,7 @@ func main() {
 
 	// FIXME:i == 0 のとき、宛先に関係なく "ping error:UnmarshalEcho error:チェックサム 65535 は再計算で 0x0000 になりません。" が発生する。
 	for i := 1; i < 5; i++ {
-		if duration, err := ping(args[0], time.Second*5, uint16(i), uint16(i), 32); err != nil {
+		if duration, err := do(args[0], time.Second*5, uint16(i), uint16(i), 32); err != nil {
 			fmt.Printf("%v\n", err)
 		} else {
 			fmt.Printf("返答を受信:RTT=%v ms\n", duration.Milliseconds())
