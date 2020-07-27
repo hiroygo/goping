@@ -219,7 +219,6 @@ func TestGetChecksum(t *testing.T) {
 	}
 }
 
-// TODO: テストでも sudo する必要あり
 func TestDo(t *testing.T) {
 	cases := []struct {
 		name           string
@@ -239,9 +238,28 @@ func TestDo(t *testing.T) {
 			dataBytes:      1,
 			wantErr:        false,
 		},
+		{
+			name:           "Google Public DNS",
+			remoteIP:       "8.8.8.8",
+			timeout:        time.Second,
+			identifier:     1,
+			sequenceNumber: 1,
+			dataBytes:      1,
+			wantErr:        false,
+		},
+		{
+			name:           "不正なアドレス",
+			remoteIP:       "1",
+			timeout:        time.Second,
+			identifier:     1,
+			sequenceNumber: 1,
+			dataBytes:      1,
+			wantErr:        true,
+		},
 	}
 
-	// TODO: 戻り値の rtt もテストする
+	// Linux 環境では "socket: operation not permitted" が発生する場合がある
+	// この場合、sudo してテストするか net.ipv4.ping_group_range を設定して実行する必要がある
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := ping.Do(c.remoteIP, c.timeout, c.identifier, c.sequenceNumber, c.dataBytes)
