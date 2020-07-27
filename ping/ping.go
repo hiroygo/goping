@@ -158,28 +158,28 @@ func parseIPv4Addr(ipv4 string) (*net.IPAddr, error) {
 }
 
 // Do ping を行い、RTT を返す
+// identifier が 0 のとき、宛先によっては返答のチェックサムが再計算で 0x0000 にならない場合がある
 func Do(remoteIP string, timeout time.Duration, identifier, sequenceNumber, dataBytes uint16) (rtt time.Duration, rerr error) {
 	// ペイロードはすべて 0 で作成する
-	echoRequest := NewEchoRequest(identifier, sequenceNumber, make([]byte, dataBytes))
-	writeBytes, err := MarshalEcho(echoRequest)
+	request := NewEchoRequest(identifier, sequenceNumber, make([]byte, dataBytes))
+	writeData, err := MarshalEcho(request)
 	if err != nil {
 		return 0, fmt.Errorf("MarshalEcho error, %w", err)
 	}
 
-	// 接続先
 	remoteAddr, err := parseIPv4Addr(remoteIP)
 	if err != nil {
 		return 0, fmt.Errorf("parseIPv4Addr error, %w", err)
 	}
 
 	/*
-		ソケットを生成する
-		IP なので connect するわけではない
-		ただし送信先情報は保存されるため WriteTo する必要はない
+		接続を作成する
+		DialIP ではなく、ListenPacket を使う
+		DialIP で生成した場合は WriteTo ではなく、Write を使う
 	*/
-	conn, err := net.DialIP("ip4:icmp", nil, remoteAddr)
+	conn, err := net.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
-		return 0, fmt.Errorf("DialIP error, %w", err)
+		return 0, fmt.Errorf("ListenPacket error, %w", err)
 	}
 	defer func() {
 		if err := conn.Close(); err != nil {
@@ -187,41 +187,36 @@ func Do(remoteIP string, timeout time.Duration, identifier, sequenceNumber, data
 		}
 	}()
 
-	// Write, ReadFrom のタイムアウトを設定する
 	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
 		return 0, fmt.Errorf("SetDeadline error, %w", err)
 	}
 
 	// 送信
 	requestTime := time.Now()
-	// WriteTo でもいいけど、DialIP で送信先を設定してるので Write を使う
-	if _, err := conn.Write(writeBytes); err != nil {
-		return 0, fmt.Errorf("Write error, %w", err)
+	if _, err := conn.WriteTo(writeData, remoteAddr); err != nil {
+		return 0, fmt.Errorf("WriteTo error, %w", err)
 	}
 
 	// 受信
-	readBytes := make([]byte, 1024)
-	// TODO: ioutil.ReadAll は使えない?
-	readSize, fromIP, err := conn.ReadFrom(readBytes)
+	readData := make([]byte, ipv4TotalLengthMax)
+	readBytes, fromIP, err := conn.ReadFrom(readData)
 	replyTime := time.Now()
 	if err != nil {
 		return 0, fmt.Errorf("ReadFrom error, %w", err)
 	}
 	if fromIP.String() != remoteAddr.String() {
-		return 0, fmt.Errorf("パケット送信元 %v が EchoRequest 先 %v と異なります", fromIP, remoteAddr)
+		return 0, fmt.Errorf("パケット送信元 %v が リクエスト先 %v と異なります", fromIP, remoteAddr)
 	}
 
-	// バッファをリサイズする
-	readBytes = readBytes[:readSize]
-
 	// 受信データを構造体にする
-	echoReply, err := UnmarshalEcho(readBytes)
+	readData = readData[:readBytes]
+	reply, err := UnmarshalEcho(readData)
 	if err != nil {
 		return 0, fmt.Errorf("UnmarshalEcho error, %w", err)
 	}
 
-	if !IsSameEchoField(echoRequest, echoReply) {
-		return 0, errors.New("EchoReply のフィールドが一致しません")
+	if !IsSameEchoField(request, reply) {
+		return 0, errors.New("ICMP フィールドが一致しません")
 	}
 
 	return replyTime.Sub(requestTime), nil
