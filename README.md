@@ -2,7 +2,7 @@
 
 ## 概要
 * Go と raw socket の勉強のために ping コマンドを作成した
-* 苦労した点
+* 勉強になったところ
   * データのシリアライズ
   * チェックサムの計算
   * raw socket 関数の扱い方
@@ -19,21 +19,23 @@
 ```
 $ sudo ./goping -h
 Usage of ./goping:
-  -c int
-    	試行回数を指定します (default 5)
+  -c uint
+    	実行回数を指定します (default 5)
   -d string
     	送信先を指定します
-  -t int
-    	タイムアウト時間を秒で指定します (default 1)
+  -l uint
+    	ペイロードのサイズをバイトで指定します (default 32)
+  -w duration
+    	タイムアウト時間を秒で指定します (default 1s)
 ```
 
 ## 実行例
 ```
 $ sudo ./goping -d 8.8.8.8
-Pinging 8.8.8.8
-返答を受信:RTT=6 ms
-返答を受信:RTT=5 ms
-返答を受信:RTT=5 ms
-返答を受信:RTT=5 ms
-返答を受信:RTT=5 ms
+PING 8.8.8.8
+recv reply: rtt=5 ms
+recv reply: rtt=4 ms
+recv reply: rtt=4 ms
+recv reply: rtt=4 ms
+recv reply: rtt=5 ms
 ```
