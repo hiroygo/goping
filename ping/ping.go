@@ -149,27 +149,14 @@ func GetChecksum(bytes []byte) uint16 {
 	return uint16(ret)
 }
 
-func parseIPv4Addr(ipv4 string) (*net.IPAddr, error) {
-	ip := net.ParseIP(ipv4)
-	if ip == nil {
-		return nil, fmt.Errorf("%v をパースできません", ipv4)
-	}
-	return &net.IPAddr{IP: ip}, nil
-}
-
 // Do ping を行い、RTT を返す
 // identifier が 0 のとき、宛先によっては返答のチェックサムが再計算で 0x0000 にならない場合がある
-func Do(remoteIP string, timeout time.Duration, identifier, sequenceNumber, dataBytes uint16) (rtt time.Duration, rerr error) {
+func Do(remoteAddr net.Addr, timeout time.Duration, identifier, sequenceNumber, dataBytes uint16) (rtt time.Duration, rerr error) {
 	// ペイロードはすべて 0 で作成する
 	request := NewEchoRequest(identifier, sequenceNumber, make([]byte, dataBytes))
 	writeData, err := MarshalEcho(request)
 	if err != nil {
 		return 0, fmt.Errorf("MarshalEcho error, %w", err)
-	}
-
-	remoteAddr, err := parseIPv4Addr(remoteIP)
-	if err != nil {
-		return 0, fmt.Errorf("parseIPv4Addr error, %w", err)
 	}
 
 	/*

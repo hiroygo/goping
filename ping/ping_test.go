@@ -1,6 +1,7 @@
 package ping_test
 
 import (
+	"net"
 	"reflect"
 	"testing"
 	"time"
@@ -222,7 +223,7 @@ func TestGetChecksum(t *testing.T) {
 func TestDo(t *testing.T) {
 	cases := []struct {
 		name           string
-		remoteIP       string
+		remoteAddr     net.Addr
 		timeout        time.Duration
 		identifier     uint16
 		sequenceNumber uint16
@@ -231,7 +232,7 @@ func TestDo(t *testing.T) {
 	}{
 		{
 			name:           "ローカルループバックアドレス",
-			remoteIP:       "127.0.0.1",
+			remoteAddr:     &net.IPAddr{IP: net.ParseIP("127.0.0.1")},
 			timeout:        time.Second,
 			identifier:     1,
 			sequenceNumber: 1,
@@ -240,7 +241,7 @@ func TestDo(t *testing.T) {
 		},
 		{
 			name:           "Google Public DNS",
-			remoteIP:       "8.8.8.8",
+			remoteAddr:     &net.IPAddr{IP: net.ParseIP("8.8.8.8")},
 			timeout:        time.Second,
 			identifier:     1,
 			sequenceNumber: 1,
@@ -248,8 +249,8 @@ func TestDo(t *testing.T) {
 			wantErr:        false,
 		},
 		{
-			name:           "不正なアドレス",
-			remoteIP:       "1",
+			name:           "nil アドレス",
+			remoteAddr:     nil,
 			timeout:        time.Second,
 			identifier:     1,
 			sequenceNumber: 1,
@@ -262,9 +263,9 @@ func TestDo(t *testing.T) {
 	// この場合、sudo してテストするか net.ipv4.ping_group_range を設定して実行する必要がある
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := ping.Do(c.remoteIP, c.timeout, c.identifier, c.sequenceNumber, c.dataBytes)
+			_, err := ping.Do(c.remoteAddr, c.timeout, c.identifier, c.sequenceNumber, c.dataBytes)
 			if !c.wantErr && err != nil {
-				t.Errorf("Do(%v, %v, %v, %v, %v) error %v", c.remoteIP, c.timeout, c.identifier, c.sequenceNumber, c.dataBytes, err)
+				t.Errorf("Do(%v, %v, %v, %v, %v) error %v", c.remoteAddr, c.timeout, c.identifier, c.sequenceNumber, c.dataBytes, err)
 			}
 		})
 	}
