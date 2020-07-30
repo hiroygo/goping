@@ -74,7 +74,7 @@ func UnmarshalEcho(bytes []byte) (*ICMPEchoMessage, error) {
 	}
 
 	if checksum := GetChecksum(bytes); checksum != 0x0000 {
-		return nil, fmt.Errorf("チェックサム %v は再計算で 0x0000 になりません", checksum)
+		return nil, fmt.Errorf("チェックサム 0x%x は再計算で 0x0000 になりません", checksum)
 	}
 
 	echo := &ICMPEchoMessage{}
