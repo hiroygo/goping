@@ -8,6 +8,7 @@
   * raw socket 関数の扱い方
 * Linux 環境だと実行に特権レベルが必要になる
   * sudo して実行する
+  * setuid して実行する
   * net.ipv4.ping_group_range を設定する
 * 参考サイト
   * https://tools.ietf.org/html/rfc792
@@ -20,13 +21,13 @@
 $ sudo ./goping -h
 Usage of ./goping:
   -c uint
-    	実行回数を指定します (default 5)
+        実行回数を指定します (default 5)
   -d string
-    	送信先を指定します
+        IPv4送信先を指定します
   -l uint
-    	ペイロードのサイズをバイトで指定します (default 32)
+        ペイロードのサイズをバイトで指定します (default 32)
   -w duration
-    	タイムアウト時間を秒で指定します (default 1s)
+        タイムアウト時間を指定します (default 1s)
 ```
 
 ## 実行例

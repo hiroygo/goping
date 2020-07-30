@@ -27,8 +27,8 @@ func parseIPv4Addr(ipv4 string) (*net.IPAddr, error) {
 }
 
 func parseArgs() (string, time.Duration, uint16, uint16, error) {
-	ipv4 := flag.String("d", "", "送信先を指定します")
-	timeoutSec := flag.Duration("w", time.Second, "タイムアウト時間を秒で指定します")
+	ipv4 := flag.String("d", "", "IPv4送信先を指定します")
+	timeout := flag.Duration("w", time.Second, "タイムアウト時間を指定します")
 	try := flag.Uint("c", 5, "実行回数を指定します")
 	dataBytes := flag.Uint("l", 32, "ペイロードのサイズをバイトで指定します")
 	flag.Parse()
@@ -43,7 +43,7 @@ func parseArgs() (string, time.Duration, uint16, uint16, error) {
 		return "", 0, 0, 0, fmt.Errorf("ペイロードのサイズ %v は不正です", *dataBytes)
 	}
 
-	return *ipv4, time.Second * (*timeoutSec), uint16(*dataBytes), uint16(*try), nil
+	return *ipv4, *timeout, uint16(*dataBytes), uint16(*try), nil
 }
 
 func main() {
