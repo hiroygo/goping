@@ -119,7 +119,7 @@ func TestUnmarshalEcho(t *testing.T) {
 	}
 }
 
-func TestIsSameEchoField(t *testing.T) {
+func TestIsPair(t *testing.T) {
 	cases := []struct {
 		name        string
 		echoRequest *ping.ICMPEchoMessage
@@ -162,14 +162,14 @@ func TestIsSameEchoField(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			if actual := ping.IsSameEchoField(c.echoRequest, c.echoReply); actual != c.expected {
+			if actual := ping.IsPair(c.echoRequest, c.echoReply); actual != c.expected {
 				t.Errorf("want IsSameEchoField(%v, %v) = %v, got %v", c.echoRequest, c.echoReply, c.expected, actual)
 			}
 		})
 	}
 }
 
-func TestGetChecksum(t *testing.T) {
+func TestChecksum(t *testing.T) {
 	cases := []struct {
 		name     string
 		input    []byte
@@ -213,7 +213,7 @@ func TestGetChecksum(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			if actual := ping.GetChecksum(c.input); actual != c.expected {
+			if actual := ping.Checksum(c.input); actual != c.expected {
 				t.Errorf("want GetChecksum(%v) = %v, got %v", c.input, c.expected, actual)
 			}
 		})

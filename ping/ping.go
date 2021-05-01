@@ -17,7 +17,6 @@ const (
 	ICMPEchoDataMaxBytes = ipv4TotalLengthMax - ipv4HeaderMinBytes - icmpHeaderBytes
 )
 
-// ICMPEchoHeader EchoRequest と EchoReply 用の ICMP ヘッダ
 type ICMPEchoHeader struct {
 	Type           byte
 	Code           byte
@@ -26,132 +25,124 @@ type ICMPEchoHeader struct {
 	SequenceNumber uint16
 }
 
-// ICMPEchoMessage EchoRequest と EchoReply を表す
+// EchoRequest と EchoReply を表す
 type ICMPEchoMessage struct {
 	ICMPEchoHeader
 	Data []byte
 }
 
-// NewEchoRequest EchoRequest のポインタを返す
 func NewEchoRequest(identifier, sequenceNumber uint16, data []byte) *ICMPEchoMessage {
-	e := &ICMPEchoMessage{ICMPEchoHeader: ICMPEchoHeader{Type: 8, Code: 0, Checksum: 0, Identifier: identifier, SequenceNumber: sequenceNumber}, Data: data}
+	e := &ICMPEchoMessage{
+		ICMPEchoHeader: ICMPEchoHeader{
+			Type: 8, Code: 0, Checksum: 0, Identifier: identifier, SequenceNumber: sequenceNumber,
+		},
+		Data: data,
+	}
 	return e
 }
 
-// MarshalEcho EchoRequest または EchoReply のバイトスライスを作成する
-func MarshalEcho(echo *ICMPEchoMessage) ([]byte, error) {
-	if echo == nil {
-		return nil, errors.New("レシーバが nil です")
+func MarshalEcho(e *ICMPEchoMessage) ([]byte, error) {
+	if len(e.Data) > ICMPEchoDataMaxBytes {
+		return nil, fmt.Errorf("ペイロードのサイズ %v は最大長 %v を超えています", len(e.Data), ICMPEchoDataMaxBytes)
 	}
 
-	if len(echo.Data) > ICMPEchoDataMaxBytes {
-		return nil, fmt.Errorf("ペイロードのサイズ %v は最大長 %v を超えています", len(echo.Data), ICMPEchoDataMaxBytes)
-	}
+	b := make([]byte, icmpHeaderBytes+len(e.Data))
+	b[0] = e.Type
+	b[1] = e.Code
 
-	bytes := make([]byte, icmpHeaderBytes+len(echo.Data))
-	bytes[0] = echo.Type
-	bytes[1] = echo.Code
-	// bytes[2], bytes[3] はチェックサムなのであとで設定する
+	// ネットワークバイトオーダに変換する
 	// uint16 をビッグエンディアンで 2byte に変換する
-	binary.BigEndian.PutUint16(bytes[4:6], echo.Identifier)
-	binary.BigEndian.PutUint16(bytes[6:8], echo.SequenceNumber)
-
-	// ペイロードを設定する
-	for i := range echo.Data {
-		bytes[icmpHeaderBytes+i] = echo.Data[i]
+	binary.BigEndian.PutUint16(b[4:6], e.Identifier)
+	binary.BigEndian.PutUint16(b[6:8], e.SequenceNumber)
+	for i := range e.Data {
+		b[icmpHeaderBytes+i] = e.Data[i]
 	}
+	// b[2], b[3] はチェックサムなので最後に設定する
+	binary.BigEndian.PutUint16(b[2:4], Checksum(b))
 
-	// チェックサムを設定する
-	binary.BigEndian.PutUint16(bytes[2:4], GetChecksum(bytes))
-
-	return bytes, nil
+	return b, nil
 }
 
-// UnmarshalEcho バイトスライスから EchoRequest または EchoReply を作成する
-func UnmarshalEcho(bytes []byte) (*ICMPEchoMessage, error) {
-	if len(bytes) < icmpHeaderBytes {
-		return nil, fmt.Errorf("バイト列のサイズ %v は最小長 %v を満たしていません", len(bytes), icmpHeaderBytes)
+func UnmarshalEcho(b []byte) (*ICMPEchoMessage, error) {
+	if len(b) < icmpHeaderBytes {
+		return nil, fmt.Errorf("バイト列のサイズ %v は最小長 %v を満たしていません", len(b), icmpHeaderBytes)
 	}
 
-	if checksum := GetChecksum(bytes); checksum != 0x0000 {
-		return nil, fmt.Errorf("チェックサム 0x%x は再計算で 0x0000 になりません", checksum)
+	if sum := Checksum(b); sum != 0x0000 {
+		return nil, fmt.Errorf("チェックサム 0x%x は再計算で 0x0000 になりません", sum)
 	}
 
-	echo := &ICMPEchoMessage{}
-	echo.Type = bytes[0]
-	echo.Code = bytes[1]
-	echo.Checksum = binary.BigEndian.Uint16(bytes[2:4])
-	echo.Identifier = binary.BigEndian.Uint16(bytes[4:6])
-	echo.SequenceNumber = binary.BigEndian.Uint16(bytes[6:8])
+	e := &ICMPEchoMessage{}
+	e.Type = b[0]
+	e.Code = b[1]
+	e.Checksum = binary.BigEndian.Uint16(b[2:4])
+	e.Identifier = binary.BigEndian.Uint16(b[4:6])
+	e.SequenceNumber = binary.BigEndian.Uint16(b[6:8])
 
 	// ペイロードが存在すればコピーする
-	if len(bytes) > icmpHeaderBytes {
-		echo.Data = append([]byte(nil), bytes[icmpHeaderBytes:]...)
+	if len(b) > icmpHeaderBytes {
+		e.Data = append([]byte(nil), b[icmpHeaderBytes:]...)
 	}
 
-	return echo, nil
+	return e, nil
 }
 
-// IsSameEchoField ICMPEchoMessage のフィールドが一致しているか確認する
+// EchoRequest と EchoReply が返答として成立しているか調べる
 // Type と Checksum は確認しない
-func IsSameEchoField(echoRequest, echoReply *ICMPEchoMessage) bool {
-	if echoRequest == nil || echoReply == nil {
+func IsPair(request, reply *ICMPEchoMessage) bool {
+	if request.Code != reply.Code {
 		return false
 	}
 
-	if echoRequest.Code != echoReply.Code {
+	if request.Identifier != reply.Identifier {
 		return false
 	}
 
-	if echoRequest.Identifier != echoReply.Identifier {
+	if request.SequenceNumber != reply.SequenceNumber {
 		return false
 	}
 
-	if echoRequest.SequenceNumber != echoReply.SequenceNumber {
-		return false
-	}
-
-	if !reflect.DeepEqual(echoRequest.Data, echoReply.Data) {
+	if !reflect.DeepEqual(request.Data, reply.Data) {
 		return false
 	}
 
 	return true
 }
 
-// GetChecksum チェックサムを計算する
+// チェックサムを計算する
 // bytes はビッグエンディアンで並んでいること
-func GetChecksum(bytes []byte) uint16 {
-	var ret uint32
+func Checksum(b []byte) uint16 {
+	var sum uint32
 
 	// 16 ビットずつ走査していく
-	for i := 0; i+1 < len(bytes); i += 2 {
+	for i := 0; i+1 < len(b); i += 2 {
 		// 初めの 8 ビット分を足す
-		ret += uint32(bytes[i]) << 8
+		sum += uint32(b[i]) << 8
 		// 後の 8 ビット分を足す
-		ret += uint32(bytes[i+1])
+		sum += uint32(b[i+1])
 	}
 
 	// ICMP の全体長が奇数の時は 0 埋めして末尾を 16 ビットとする
-	if len(bytes)%2 != 0 {
-		ret += uint32(bytes[len(bytes)-1]) << 8
+	if len(b)%2 != 0 {
+		sum += uint32(b[len(b)-1]) << 8
 	}
 
 	// チェックサムは 16 ビットなのであふれた桁を取り出す
-	overflowDigit := ret >> 16
+	overflowDigit := sum >> 16
 
 	// あふれた分を消して、足す
-	ret &= 0x0000FFFF
-	ret += overflowDigit
+	sum &= 0x0000FFFF
+	sum += overflowDigit
 
 	// ビット反転
-	ret = ^ret
+	sum = ^sum
 
-	return uint16(ret)
+	return uint16(sum)
 }
 
-// Do ping を行い、RTT を返す
+// ping を行い、RTT を返す
 // identifier が 0 のとき、宛先によっては返答のチェックサムが再計算で 0x0000 にならない場合がある
-func Do(remoteAddr net.Addr, timeout time.Duration, identifier, sequenceNumber, dataBytes uint16) (rtt time.Duration, rerr error) {
+func Do(remote net.Addr, timeout time.Duration, identifier, sequenceNumber, dataBytes uint16) (rtt time.Duration, rerr error) {
 	// ペイロードはすべて 0 で作成する
 	request := NewEchoRequest(identifier, sequenceNumber, make([]byte, dataBytes))
 	writeData, err := MarshalEcho(request)
@@ -180,7 +171,7 @@ func Do(remoteAddr net.Addr, timeout time.Duration, identifier, sequenceNumber, 
 
 	// 送信
 	requestTime := time.Now()
-	if _, err := conn.WriteTo(writeData, remoteAddr); err != nil {
+	if _, err := conn.WriteTo(writeData, remote); err != nil {
 		return 0, fmt.Errorf("WriteTo error, %w", err)
 	}
 
@@ -191,8 +182,8 @@ func Do(remoteAddr net.Addr, timeout time.Duration, identifier, sequenceNumber, 
 	if err != nil {
 		return 0, fmt.Errorf("ReadFrom error, %w", err)
 	}
-	if fromIP.String() != remoteAddr.String() {
-		return 0, fmt.Errorf("パケット送信元 %v が リクエスト先 %v と異なります", fromIP, remoteAddr)
+	if fromIP.String() != remote.String() {
+		return 0, fmt.Errorf("パケット送信元 %v が リクエスト先 %v と異なります", fromIP, remote)
 	}
 
 	// 受信データを構造体にする
@@ -202,7 +193,7 @@ func Do(remoteAddr net.Addr, timeout time.Duration, identifier, sequenceNumber, 
 		return 0, fmt.Errorf("UnmarshalEcho error, %w", err)
 	}
 
-	if !IsSameEchoField(request, reply) {
+	if !IsPair(request, reply) {
 		return 0, errors.New("ICMP フィールドが一致しません")
 	}
 
