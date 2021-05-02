@@ -260,7 +260,7 @@ func TestDo(t *testing.T) {
 	}
 
 	// Linux 環境では "socket: operation not permitted" が発生する場合がある
-	// この場合、sudo してテストするか net.ipv4.ping_group_range を設定して実行する必要がある
+	// この場合 sudo してテストする
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := ping.Do(c.remoteAddr, c.timeout, c.identifier, c.sequenceNumber, c.dataBytes)

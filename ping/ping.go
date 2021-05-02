@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	ipv4HeaderMinBytes = 20
-	ipv4TotalLengthMax = 65535
-	icmpHeaderBytes    = 8
-	// ICMPEchoDataMaxBytes ICMP ペイロードの最大バイト数
-	ICMPEchoDataMaxBytes = ipv4TotalLengthMax - ipv4HeaderMinBytes - icmpHeaderBytes
+	// 通常は 20 バイト
+	ipv4HeaderMinSize = 20
+	ipv4TotalMaxSize  = 65535
+	icmpHeaderSize    = 8
+	// ICMP ペイロードの最大バイト数
+	MaxDataSize = ipv4TotalMaxSize - ipv4HeaderMinSize - icmpHeaderSize
 )
 
 type ICMPEchoHeader struct {
@@ -32,30 +33,28 @@ type ICMPEchoMessage struct {
 }
 
 func NewEchoRequest(identifier, sequenceNumber uint16, data []byte) *ICMPEchoMessage {
-	e := &ICMPEchoMessage{
+	return &ICMPEchoMessage{
 		ICMPEchoHeader: ICMPEchoHeader{
 			Type: 8, Code: 0, Checksum: 0, Identifier: identifier, SequenceNumber: sequenceNumber,
 		},
 		Data: data,
 	}
-	return e
 }
 
 func MarshalEcho(e *ICMPEchoMessage) ([]byte, error) {
-	if len(e.Data) > ICMPEchoDataMaxBytes {
-		return nil, fmt.Errorf("ペイロードのサイズ %v は最大長 %v を超えています", len(e.Data), ICMPEchoDataMaxBytes)
+	if len(e.Data) > MaxDataSize {
+		return nil, fmt.Errorf("ペイロードのサイズ %v が %v を超えています", len(e.Data), MaxDataSize)
 	}
 
-	b := make([]byte, icmpHeaderBytes+len(e.Data))
+	b := make([]byte, icmpHeaderSize+len(e.Data))
 	b[0] = e.Type
 	b[1] = e.Code
-
 	// ネットワークバイトオーダに変換する
 	// uint16 をビッグエンディアンで 2byte に変換する
 	binary.BigEndian.PutUint16(b[4:6], e.Identifier)
 	binary.BigEndian.PutUint16(b[6:8], e.SequenceNumber)
 	for i := range e.Data {
-		b[icmpHeaderBytes+i] = e.Data[i]
+		b[icmpHeaderSize+i] = e.Data[i]
 	}
 	// b[2], b[3] はチェックサムなので最後に設定する
 	binary.BigEndian.PutUint16(b[2:4], Checksum(b))
@@ -64,8 +63,8 @@ func MarshalEcho(e *ICMPEchoMessage) ([]byte, error) {
 }
 
 func UnmarshalEcho(b []byte) (*ICMPEchoMessage, error) {
-	if len(b) < icmpHeaderBytes {
-		return nil, fmt.Errorf("バイト列のサイズ %v は最小長 %v を満たしていません", len(b), icmpHeaderBytes)
+	if len(b) < icmpHeaderSize {
+		return nil, fmt.Errorf("バイト列のサイズ %v は最小長 %v を満たしていません", len(b), icmpHeaderSize)
 	}
 
 	if sum := Checksum(b); sum != 0x0000 {
@@ -78,16 +77,15 @@ func UnmarshalEcho(b []byte) (*ICMPEchoMessage, error) {
 	e.Checksum = binary.BigEndian.Uint16(b[2:4])
 	e.Identifier = binary.BigEndian.Uint16(b[4:6])
 	e.SequenceNumber = binary.BigEndian.Uint16(b[6:8])
-
 	// ペイロードが存在すればコピーする
-	if len(b) > icmpHeaderBytes {
-		e.Data = append([]byte(nil), b[icmpHeaderBytes:]...)
+	if len(b) > icmpHeaderSize {
+		e.Data = append([]byte(nil), b[icmpHeaderSize:]...)
 	}
 
 	return e, nil
 }
 
-// EchoRequest と EchoReply が返答として成立しているか調べる
+// EchoRequest と EchoReply が対になっているか調べる
 // Type と Checksum は確認しない
 func IsPair(request, reply *ICMPEchoMessage) bool {
 	if request.Code != reply.Code {
@@ -109,8 +107,8 @@ func IsPair(request, reply *ICMPEchoMessage) bool {
 	return true
 }
 
-// チェックサムを計算する
-// bytes はビッグエンディアンで並んでいること
+// ICMP チェックサムを計算する
+// b はビッグエンディアンで並んでいること
 func Checksum(b []byte) uint16 {
 	var sum uint32
 
@@ -140,21 +138,18 @@ func Checksum(b []byte) uint16 {
 	return uint16(sum)
 }
 
-// ping を行い、RTT を返す
 // identifier が 0 のとき、宛先によっては返答のチェックサムが再計算で 0x0000 にならない場合がある
-func Do(remote net.Addr, timeout time.Duration, identifier, sequenceNumber, dataBytes uint16) (rtt time.Duration, rerr error) {
+func Do(remote net.Addr, timeout time.Duration, identifier, sequenceNumber, dataSize uint16) (rtt time.Duration, rerr error) {
 	// ペイロードはすべて 0 で作成する
-	request := NewEchoRequest(identifier, sequenceNumber, make([]byte, dataBytes))
-	writeData, err := MarshalEcho(request)
+	request := NewEchoRequest(identifier, sequenceNumber, make([]byte, dataSize))
+	sendData, err := MarshalEcho(request)
 	if err != nil {
 		return 0, fmt.Errorf("MarshalEcho error, %w", err)
 	}
 
-	/*
-		接続を作成する
-		DialIP ではなく、ListenPacket を使う
-		DialIP で生成した場合は WriteTo ではなく、Write を使う
-	*/
+	// 接続を作成する
+	// ListenPacket は PacketConn インタフェースを実装した IPConn を返す
+	// 試してないけど net.Dial でも作成できそう
 	conn, err := net.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
 		return 0, fmt.Errorf("ListenPacket error, %w", err)
@@ -164,31 +159,31 @@ func Do(remote net.Addr, timeout time.Duration, identifier, sequenceNumber, data
 			rerr = err
 		}
 	}()
-
 	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
 		return 0, fmt.Errorf("SetDeadline error, %w", err)
 	}
 
 	// 送信
-	requestTime := time.Now()
-	if _, err := conn.WriteTo(writeData, remote); err != nil {
+	start := time.Now()
+	if _, err := conn.WriteTo(sendData, remote); err != nil {
 		return 0, fmt.Errorf("WriteTo error, %w", err)
 	}
 
 	// 受信
-	readData := make([]byte, ipv4TotalLengthMax)
-	readBytes, fromIP, err := conn.ReadFrom(readData)
-	replyTime := time.Now()
+	recvData := make([]byte, ipv4TotalMaxSize)
+	recvSize, recvIP, err := conn.ReadFrom(recvData)
+	end := time.Now()
 	if err != nil {
 		return 0, fmt.Errorf("ReadFrom error, %w", err)
 	}
-	if fromIP.String() != remote.String() {
-		return 0, fmt.Errorf("パケット送信元 %v が リクエスト先 %v と異なります", fromIP, remote)
+	// FIXME: これはエラーではないはず
+	// チャネルで待機?
+	if recvIP.String() != remote.String() {
+		return 0, fmt.Errorf("パケット送信元 %v が リクエスト先 %v と異なります", recvIP, remote)
 	}
-
 	// 受信データを構造体にする
-	readData = readData[:readBytes]
-	reply, err := UnmarshalEcho(readData)
+	recvData = recvData[:recvSize]
+	reply, err := UnmarshalEcho(recvData)
 	if err != nil {
 		return 0, fmt.Errorf("UnmarshalEcho error, %w", err)
 	}
@@ -197,5 +192,5 @@ func Do(remote net.Addr, timeout time.Duration, identifier, sequenceNumber, data
 		return 0, errors.New("ICMP フィールドが一致しません")
 	}
 
-	return replyTime.Sub(requestTime), nil
+	return end.Sub(start), nil
 }

@@ -57,6 +57,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
+	// FIXME: pid にする
 	identifier := randomIdentifier()
 
 	fmt.Printf("PING %v\n", remoteAddr.String())
