@@ -62,6 +62,13 @@ func MarshalEcho(e *ICMPEchoMessage) ([]byte, error) {
 	return b, nil
 }
 
+func icmpType(b []byte) (byte, error) {
+	if len(b) < icmpHeaderSize {
+		return 0, fmt.Errorf("バイト列のサイズ %v は最小長 %v を満たしていません", len(b), icmpHeaderSize)
+	}
+	return b[0], nil
+}
+
 func UnmarshalEcho(b []byte) (*ICMPEchoMessage, error) {
 	if len(b) < icmpHeaderSize {
 		return nil, fmt.Errorf("バイト列のサイズ %v は最小長 %v を満たしていません", len(b), icmpHeaderSize)
@@ -87,24 +94,24 @@ func UnmarshalEcho(b []byte) (*ICMPEchoMessage, error) {
 
 // EchoRequest と EchoReply が対になっているか調べる
 // Type と Checksum は確認しない
-func IsPair(request, reply *ICMPEchoMessage) bool {
+func Pair(request, reply *ICMPEchoMessage) error {
 	if request.Code != reply.Code {
-		return false
+		return errors.New("Code が一致しません")
 	}
 
 	if request.Identifier != reply.Identifier {
-		return false
+		return errors.New("Identifier が一致しません")
 	}
 
 	if request.SequenceNumber != reply.SequenceNumber {
-		return false
+		return errors.New("SequenceNumber が一致しません")
 	}
 
 	if !reflect.DeepEqual(request.Data, reply.Data) {
-		return false
+		return errors.New("Data が一致しません")
 	}
 
-	return true
+	return nil
 }
 
 // ICMP チェックサムを計算する
@@ -138,59 +145,74 @@ func Checksum(b []byte) uint16 {
 	return uint16(sum)
 }
 
-// identifier が 0 のとき、宛先によっては返答のチェックサムが再計算で 0x0000 にならない場合がある
-func Do(remote net.Addr, timeout time.Duration, identifier, sequenceNumber, dataSize uint16) (rtt time.Duration, rerr error) {
-	// ペイロードはすべて 0 で作成する
-	request := NewEchoRequest(identifier, sequenceNumber, make([]byte, dataSize))
-	sendData, err := MarshalEcho(request)
+// IPv4 先に Ping する
+// DestinationUnreachable などのエラー時には onReplyErr が実行される
+func Do(ip4Remote *net.IPAddr, timeout time.Duration, identifier, sequenceNumber, dataSize uint16, onReplyErr func(error)) (rtt time.Duration, rerr error) {
+	conn, err := net.DialIP("ip4:icmp", nil, ip4Remote)
 	if err != nil {
-		return 0, fmt.Errorf("MarshalEcho error, %w", err)
-	}
-
-	// 接続を作成する
-	// ListenPacket は PacketConn インタフェースを実装した IPConn を返す
-	// 試してないけど net.Dial でも作成できそう
-	conn, err := net.ListenPacket("ip4:icmp", "0.0.0.0")
-	if err != nil {
-		return 0, fmt.Errorf("ListenPacket error, %w", err)
+		return 0, fmt.Errorf("DialIP error: %w", err)
 	}
 	defer func() {
 		if err := conn.Close(); err != nil {
 			rerr = err
 		}
 	}()
-	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
-		return 0, fmt.Errorf("SetDeadline error, %w", err)
-	}
 
-	// 送信
+	// 送信する
+	// ペイロードはすべて 0 で作成する
+	request := NewEchoRequest(identifier, sequenceNumber, make([]byte, dataSize))
+	sendData, err := MarshalEcho(request)
+	if err != nil {
+		return 0, fmt.Errorf("MarshalEcho error: %w", err)
+	}
+	if err := conn.SetWriteDeadline(time.Now().Add(timeout)); err != nil {
+		return 0, fmt.Errorf("SetWriteDeadline error: %w", err)
+	}
 	start := time.Now()
-	if _, err := conn.WriteTo(sendData, remote); err != nil {
-		return 0, fmt.Errorf("WriteTo error, %w", err)
+	if _, err := conn.Write(sendData); err != nil {
+		return 0, fmt.Errorf("Write error: %w", err)
 	}
 
-	// 受信
-	recvData := make([]byte, ipv4TotalMaxSize)
-	recvSize, recvIP, err := conn.ReadFrom(recvData)
-	end := time.Now()
-	if err != nil {
-		return 0, fmt.Errorf("ReadFrom error, %w", err)
-	}
-	// FIXME: これはエラーではないはず
-	// チャネルで待機?
-	if recvIP.String() != remote.String() {
-		return 0, fmt.Errorf("パケット送信元 %v が リクエスト先 %v と異なります", recvIP, remote)
-	}
-	// 受信データを構造体にする
-	recvData = recvData[:recvSize]
-	reply, err := UnmarshalEcho(recvData)
-	if err != nil {
-		return 0, fmt.Errorf("UnmarshalEcho error, %w", err)
-	}
+	// 受信する
+	timeoutCh := time.After(timeout)
+	for {
+		select {
+		case <-timeoutCh:
+			return 0, errors.New("返答受信がタイムアウトしました")
+		default:
+			recvData := make([]byte, ipv4TotalMaxSize)
+			if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+				return 0, fmt.Errorf("SetReadDeadline error: %w", err)
+			}
+			recvSize, recvFrom, err := conn.ReadFromIP(recvData)
+			end := time.Now()
+			if err != nil {
+				return 0, fmt.Errorf("ReadFromIP error: %w", err)
+			}
 
-	if !IsPair(request, reply) {
-		return 0, errors.New("ICMP フィールドが一致しません")
+			// 受信データを構造体にする
+			recvData = recvData[:recvSize]
+			t, err := icmpType(recvData)
+			if err != nil {
+				onReplyErr(fmt.Errorf("icmpType error: %w", err))
+				continue
+			}
+			if t == 0 && recvFrom.IP.Equal(ip4Remote.IP) {
+				reply, err := UnmarshalEcho(recvData)
+				if err != nil {
+					onReplyErr(fmt.Errorf("UnmarshalEcho error: %w", err))
+					continue
+				}
+				if err := Pair(request, reply); err != nil {
+					onReplyErr(fmt.Errorf("Pair error: %w", err))
+					continue
+				}
+				return end.Sub(start), nil
+			}
+			// Linux では localhost などに ping した場合
+			// 自分が送った EchoRequest(8) を受信する
+			// その後 OS のネットワークスタックから EchoReply を受信したりする
+			onReplyErr(fmt.Errorf("%v から %v を受信しました", recvFrom.IP.String(), t))
+		}
 	}
-
-	return end.Sub(start), nil
 }

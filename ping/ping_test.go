@@ -119,42 +119,42 @@ func TestUnmarshalEcho(t *testing.T) {
 	}
 }
 
-func TestIsPair(t *testing.T) {
+func TestPair(t *testing.T) {
 	cases := []struct {
 		name        string
 		echoRequest *ping.ICMPEchoMessage
 		echoReply   *ping.ICMPEchoMessage
-		expected    bool
+		wantErr     bool
 	}{
 		{
 			name:        "Code が異なる",
-			echoRequest: &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Type: 0, Code: 1, Checksum: 0, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
-			echoReply:   &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Type: 0, Code: 0, Checksum: 0, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
-			expected:    false,
+			echoRequest: &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Code: 1, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
+			echoReply:   &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Code: 0, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
+			wantErr:     true,
 		},
 		{
 			name:        "Identifier が異なる",
-			echoRequest: &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Type: 0, Code: 1, Checksum: 0, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
-			echoReply:   &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Type: 0, Code: 1, Checksum: 0, Identifier: 0, SequenceNumber: 3}, Data: []byte{0}},
-			expected:    false,
+			echoRequest: &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Code: 1, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
+			echoReply:   &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Code: 1, Identifier: 0, SequenceNumber: 3}, Data: []byte{0}},
+			wantErr:     true,
 		},
 		{
 			name:        "SequenceNumber が異なる",
-			echoRequest: &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Type: 0, Code: 1, Checksum: 0, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
-			echoReply:   &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Type: 0, Code: 1, Checksum: 0, Identifier: 2, SequenceNumber: 0}, Data: []byte{0}},
-			expected:    false,
+			echoRequest: &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Code: 1, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
+			echoReply:   &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Code: 1, Identifier: 2, SequenceNumber: 0}, Data: []byte{0}},
+			wantErr:     true,
 		},
 		{
 			name:        "Data が異なる",
-			echoRequest: &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Type: 0, Code: 1, Checksum: 0, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
-			echoReply:   &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Type: 0, Code: 1, Checksum: 0, Identifier: 2, SequenceNumber: 3}, Data: []byte{0, 0}},
-			expected:    false,
+			echoRequest: &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Code: 1, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
+			echoReply:   &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Code: 1, Identifier: 2, SequenceNumber: 3}, Data: []byte{0, 0}},
+			wantErr:     true,
 		},
 		{
 			name:        "一致する",
-			echoRequest: &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Type: 0, Code: 1, Checksum: 0, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
-			echoReply:   &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Type: 0, Code: 1, Checksum: 0, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
-			expected:    true,
+			echoRequest: &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Code: 1, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
+			echoReply:   &ping.ICMPEchoMessage{ICMPEchoHeader: ping.ICMPEchoHeader{Code: 1, Identifier: 2, SequenceNumber: 3}, Data: []byte{0}},
+			wantErr:     false,
 		},
 	}
 
@@ -162,8 +162,9 @@ func TestIsPair(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			if actual := ping.IsPair(c.echoRequest, c.echoReply); actual != c.expected {
-				t.Errorf("want IsSameEchoField(%v, %v) = %v, got %v", c.echoRequest, c.echoReply, c.expected, actual)
+			actual := ping.Pair(c.echoRequest, c.echoReply)
+			if c.wantErr && actual == nil || !c.wantErr && actual != nil {
+				t.Errorf("wantErr Pair(%v, %v) = %v, got %v", c.echoRequest, c.echoReply, c.wantErr, actual)
 			}
 		})
 	}
@@ -214,7 +215,7 @@ func TestChecksum(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			if actual := ping.Checksum(c.input); actual != c.expected {
-				t.Errorf("want GetChecksum(%v) = %v, got %v", c.input, c.expected, actual)
+				t.Errorf("want Checksum(%v) = %v, got %v", c.input, c.expected, actual)
 			}
 		})
 	}
@@ -223,38 +224,38 @@ func TestChecksum(t *testing.T) {
 func TestDo(t *testing.T) {
 	cases := []struct {
 		name           string
-		remoteAddr     net.Addr
+		ip4Remote      *net.IPAddr
 		timeout        time.Duration
 		identifier     uint16
 		sequenceNumber uint16
-		dataBytes      uint16
+		dataSize       uint16
 		wantErr        bool
 	}{
 		{
 			name:           "ローカルループバックアドレス",
-			remoteAddr:     &net.IPAddr{IP: net.ParseIP("127.0.0.1")},
+			ip4Remote:      &net.IPAddr{IP: net.ParseIP("127.0.0.1")},
 			timeout:        time.Second,
 			identifier:     1,
 			sequenceNumber: 1,
-			dataBytes:      1,
+			dataSize:       1,
 			wantErr:        false,
 		},
 		{
 			name:           "Google Public DNS",
-			remoteAddr:     &net.IPAddr{IP: net.ParseIP("8.8.8.8")},
+			ip4Remote:      &net.IPAddr{IP: net.ParseIP("8.8.8.8")},
 			timeout:        time.Second,
 			identifier:     1,
 			sequenceNumber: 1,
-			dataBytes:      1,
+			dataSize:       1,
 			wantErr:        false,
 		},
 		{
-			name:           "nil アドレス",
-			remoteAddr:     nil,
+			name:           "Reserved IP address",
+			ip4Remote:      &net.IPAddr{IP: net.ParseIP("192.0.2.1")},
 			timeout:        time.Second,
 			identifier:     1,
 			sequenceNumber: 1,
-			dataBytes:      1,
+			dataSize:       1,
 			wantErr:        true,
 		},
 	}
@@ -262,10 +263,12 @@ func TestDo(t *testing.T) {
 	// Linux 環境では "socket: operation not permitted" が発生する場合がある
 	// この場合 sudo してテストする
 	for _, c := range cases {
+		c := c
 		t.Run(c.name, func(t *testing.T) {
-			_, err := ping.Do(c.remoteAddr, c.timeout, c.identifier, c.sequenceNumber, c.dataBytes)
-			if !c.wantErr && err != nil {
-				t.Errorf("Do(%v, %v, %v, %v, %v) error %v", c.remoteAddr, c.timeout, c.identifier, c.sequenceNumber, c.dataBytes, err)
+			t.Parallel()
+			_, err := ping.Do(c.ip4Remote, c.timeout, c.identifier, c.sequenceNumber, c.dataSize, func(error) {})
+			if c.wantErr && err == nil || !c.wantErr && err != nil {
+				t.Errorf("wantErr Do(%v, %v, %v, %v, %v) = %v, got %v", c.ip4Remote, c.timeout, c.identifier, c.sequenceNumber, c.dataSize, c.wantErr, err)
 			}
 		})
 	}
