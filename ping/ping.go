@@ -197,6 +197,12 @@ func Do(ip4Remote *net.IPAddr, timeout time.Duration, identifier, sequenceNumber
 				onReplyErr(fmt.Errorf("icmpType error: %w", err))
 				continue
 			}
+			// Linux では raw socket で localhost などに ping した場合
+			// 自分が送った EchoRequest(8) を受信する
+			// その後 OS のネットワークスタックから EchoReply を受信したりする
+			if t == 8 {
+				continue
+			}
 			if t == 0 && recvFrom.IP.Equal(ip4Remote.IP) {
 				reply, err := UnmarshalEcho(recvData)
 				if err != nil {
@@ -209,9 +215,6 @@ func Do(ip4Remote *net.IPAddr, timeout time.Duration, identifier, sequenceNumber
 				}
 				return end.Sub(start), nil
 			}
-			// Linux では localhost などに ping した場合
-			// 自分が送った EchoRequest(8) を受信する
-			// その後 OS のネットワークスタックから EchoReply を受信したりする
 			onReplyErr(fmt.Errorf("%v から %v を受信しました", recvFrom.IP.String(), t))
 		}
 	}

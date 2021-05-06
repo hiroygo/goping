@@ -266,9 +266,11 @@ func TestDo(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := ping.Do(c.ip4Remote, c.timeout, c.identifier, c.sequenceNumber, c.dataSize, func(error) {})
-			if c.wantErr && err == nil || !c.wantErr && err != nil {
-				t.Errorf("wantErr Do(%v, %v, %v, %v, %v) = %v, got %v", c.ip4Remote, c.timeout, c.identifier, c.sequenceNumber, c.dataSize, c.wantErr, err)
+			for i := 0; i < 5; i++ {
+				_, err := ping.Do(c.ip4Remote, c.timeout, c.identifier, c.sequenceNumber, c.dataSize, func(error) {})
+				if c.wantErr && err == nil || !c.wantErr && err != nil {
+					t.Errorf("wantErr Do(%v, %v, %v, %v, %v) = %v, got %v", c.ip4Remote, c.timeout, c.identifier, c.sequenceNumber, c.dataSize, c.wantErr, err)
+				}
 			}
 		})
 	}
