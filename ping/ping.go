@@ -148,6 +148,11 @@ func Checksum(b []byte) uint16 {
 // IPv4 先に Ping する
 // DestinationUnreachable などのエラー時には onReplyErr が実行される
 func Do(ip4Remote *net.IPAddr, timeout time.Duration, identifier, sequenceNumber, dataSize uint16, onReplyErr func(error)) (rtt time.Duration, rerr error) {
+	// FIXME:
+	// C では以下の関数の組み合わせで自分宛の全ての ICMP パケットを受信できるが
+	// golang ではなぜか受信できない
+	// * socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)
+	// * recv(sock, buf, sizeof(buf), 0)
 	conn, err := net.DialIP("ip4:icmp", nil, ip4Remote)
 	if err != nil {
 		return 0, fmt.Errorf("DialIP error: %w", err)
@@ -190,16 +195,15 @@ func Do(ip4Remote *net.IPAddr, timeout time.Duration, identifier, sequenceNumber
 				return 0, fmt.Errorf("ReadFromIP error: %w", err)
 			}
 
-			// 受信データを構造体にする
 			recvData = recvData[:recvSize]
 			t, err := icmpType(recvData)
 			if err != nil {
 				onReplyErr(fmt.Errorf("icmpType error: %w", err))
 				continue
 			}
-			// Linux では raw socket で localhost などに ping した場合
+			// Linux では localhost などに ping した場合
 			// 自分が送った EchoRequest(8) を受信する
-			// その後 OS のネットワークスタックから EchoReply を受信したりする
+			// その後、カーネルのプロトコルモジュールから EchoReply を受信したりする
 			if t == 8 {
 				continue
 			}
