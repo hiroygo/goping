@@ -44,13 +44,10 @@ func main() {
 		os.Exit(1)
 	}
 	identifier := uint16(os.Getpid())
-	onReplyErr := func(err error) {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-	}
 
 	fmt.Printf("PING %v (%v) %v(%v) bytes of data.\n", remoteName, remote, dataSize, dataSize+28)
 	for i := uint16(0); i < try; i++ {
-		rtt, err := ping.Do(remote, timeout, identifier, i, dataSize, onReplyErr)
+		rtt, err := ping.Do(remote, timeout, identifier, i, dataSize)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		} else {

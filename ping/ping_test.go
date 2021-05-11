@@ -258,7 +258,7 @@ func TestDo(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			for i := 0; i < 5; i++ {
-				_, err := ping.Do(c.ip4Remote, c.timeout, c.identifier, c.sequenceNumber, c.dataSize, func(error) {})
+				_, err := ping.Do(c.ip4Remote, c.timeout, c.identifier, c.sequenceNumber, c.dataSize)
 				if c.wantErr && err == nil || !c.wantErr && err != nil {
 					t.Errorf("wantErr Do(%v, %v, %v, %v, %v) = %v, got %v", c.ip4Remote, c.timeout, c.identifier, c.sequenceNumber, c.dataSize, c.wantErr, err)
 				}

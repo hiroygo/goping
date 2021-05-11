@@ -146,16 +146,12 @@ func Checksum(b []byte) uint16 {
 }
 
 // IPv4 先に Ping する
-// DestinationUnreachable などのエラー時には onReplyErr が実行される
-func Do(ip4Remote *net.IPAddr, timeout time.Duration, identifier, sequenceNumber, dataSize uint16, onReplyErr func(error)) (rtt time.Duration, rerr error) {
-	// FIXME:
-	// C では以下の関数の組み合わせで自分宛の全ての ICMP パケットを受信できるが
-	// golang ではなぜか受信できない
-	// * socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)
-	// * recv(sock, buf, sizeof(buf), 0)
-	conn, err := net.DialIP("ip4:icmp", nil, ip4Remote)
+func Do(ip4Remote *net.IPAddr, timeout time.Duration, identifier, sequenceNumber, dataSize uint16) (rtt time.Duration, rerr error) {
+	// DialIP では送信先からのパケットは受信できるが他のマシンからの
+	// パケットは受信できない。つまり Destination Unreachable などが受信できない
+	conn, err := net.ListenIP("ip4:icmp", nil)
 	if err != nil {
-		return 0, fmt.Errorf("DialIP error: %w", err)
+		return 0, fmt.Errorf("ListenIP error: %w", err)
 	}
 	defer func() {
 		if err := conn.Close(); err != nil {
@@ -174,8 +170,8 @@ func Do(ip4Remote *net.IPAddr, timeout time.Duration, identifier, sequenceNumber
 		return 0, fmt.Errorf("SetWriteDeadline error: %w", err)
 	}
 	start := time.Now()
-	if _, err := conn.Write(sendData); err != nil {
-		return 0, fmt.Errorf("Write error: %w", err)
+	if _, err := conn.WriteToIP(sendData, ip4Remote); err != nil {
+		return 0, fmt.Errorf("WriteToIP error: %w", err)
 	}
 
 	// 受信する
@@ -198,7 +194,6 @@ func Do(ip4Remote *net.IPAddr, timeout time.Duration, identifier, sequenceNumber
 			recvData = recvData[:recvSize]
 			t, err := icmpType(recvData)
 			if err != nil {
-				onReplyErr(fmt.Errorf("icmpType error: %w", err))
 				continue
 			}
 			// Linux では localhost などに ping した場合
@@ -210,16 +205,17 @@ func Do(ip4Remote *net.IPAddr, timeout time.Duration, identifier, sequenceNumber
 			if t == 0 && recvFrom.IP.Equal(ip4Remote.IP) {
 				reply, err := UnmarshalEcho(recvData)
 				if err != nil {
-					onReplyErr(fmt.Errorf("UnmarshalEcho error: %w", err))
 					continue
 				}
 				if err := Pair(request, reply); err != nil {
-					onReplyErr(fmt.Errorf("Pair error: %w", err))
 					continue
 				}
 				return end.Sub(start), nil
 			}
-			onReplyErr(fmt.Errorf("%v から %v を受信しました", recvFrom.IP.String(), t))
+			if t == 3 {
+				return 0, fmt.Errorf("From %v Destination Unreachable", recvFrom.IP.String())
+			}
+			// 本当は他の Type も処理すべき
 		}
 	}
 }
