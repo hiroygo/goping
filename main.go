@@ -14,7 +14,7 @@ import (
 
 func args() (string, time.Duration, uint16, uint16, error) {
 	remoteName := flag.String("d", "", "送信先をホスト名または IPv4 アドレスで指定します")
-	timeout := flag.Duration("w", time.Second, "タイムアウト時間を指定します")
+	timeout := flag.Duration("w", time.Second*5, "タイムアウト時間を指定します")
 	try := flag.Uint("c", 5, "実行回数を指定します")
 	dataSize := flag.Uint("l", 32, "ペイロードのサイズをバイトで指定します")
 	flag.Parse()

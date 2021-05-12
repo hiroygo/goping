@@ -5,13 +5,13 @@
 $ sudo ./goping -h
 Usage of ./goping:
   -c uint
-    	実行回数を指定します (default 5)
+        実行回数を指定します (default 5)
   -d string
-    	送信先をホスト名または IPv4 アドレスで指定します
+        送信先をホスト名または IPv4 アドレスで指定します
   -l uint
-    	ペイロードのサイズをバイトで指定します (default 32)
+        ペイロードのサイズをバイトで指定します (default 32)
   -w duration
-    	タイムアウト時間を指定します (default 1s)
+        タイムアウト時間を指定します (default 5s)
 ```
 
 ## 実行例
