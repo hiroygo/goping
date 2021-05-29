@@ -1,4 +1,5 @@
 # goping
+[![test](https://github.com/hiroygo/goping/actions/workflows/test.yml/badge.svg)](https://github.com/hiroygo/goping/actions/workflows/test.yml)
 
 ## 使用方法
 ```
