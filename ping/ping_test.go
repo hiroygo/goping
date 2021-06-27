@@ -241,7 +241,7 @@ func TestDo(t *testing.T) {
 			wantErr:        false,
 		},
 		{
-			name:           "予約アドレスなので到達不可",
+			name:           "例示用アドレス",
 			ip4Remote:      &net.IPAddr{IP: net.ParseIP("192.0.2.1")},
 			timeout:        time.Millisecond * 500,
 			identifier:     1,
