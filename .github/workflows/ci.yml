@@ -12,7 +12,6 @@ jobs:
       with:
         go-version-file: "go.mod"
         check-latest: true
-        cache: true
     - name: Test for linux
       if: matrix.os == 'ubuntu-latest'
       run: sudo go test -race -cover ./...
