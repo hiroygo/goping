@@ -7,33 +7,18 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-    - name: Install Go
-      uses: actions/setup-go@v2
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
       with:
-        go-version: 1.16.x
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - uses: actions/cache@v2
-      with:
-        # In order:
-        # * Module download cache
-        # * Build cache (Linux)
-        # * Build cache (Mac)
-        # * Build cache (Windows)
-        path: |
-          ~/go/pkg/mod
-          ~/.cache/go-build
-          ~/Library/Caches/go-build
-          %LocalAppData%\go-build
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+        go-version-file: "go.mod"
+        check-latest: true
+        cache: true
     - name: Test for linux
       if: matrix.os == 'ubuntu-latest'
-      run: sudo go test -cover ./...
+      run: sudo go test -race -cover ./...
     - name: Test for mac
       if: matrix.os == 'macos-latest'
-      run: sudo go test -cover ./...
+      run: sudo go test -race -cover ./...
     - name: Test for windows 
       if: matrix.os == 'windows-latest'
-      run: go test -cover ./...
+      run: go test -race -cover ./...
