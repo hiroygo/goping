@@ -1,0 +1,23 @@
+name: Test 
+on: [push]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+      with:
+        go-version-file: "go.mod"
+        check-latest: true
+    - name: Test for linux
+      if: matrix.os == 'ubuntu-latest'
+      run: sudo go test -race -cover ./...
+    - name: Test for mac
+      if: matrix.os == 'macos-latest'
+      run: sudo go test -race -cover ./...
+    - name: Test for windows 
+      if: matrix.os == 'windows-latest'
+      run: go test -race -cover ./...
